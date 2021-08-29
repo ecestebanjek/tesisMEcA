@@ -1,0 +1,160 @@
+---
+title: "Limpieza_Saber_9_11"
+author: "JECG"
+date: "20/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importan librerias
+
+```{r cars, include=FALSE}
+library(tidyverse)  # Gestión de datos
+library(huxtable)   # Presentación de resultados de regresión
+library(broom)      # Organización de los resultados de regresiones
+library(haven)      # Leer dta
+library(skimr)      # Resumen de datos
+library(sjPlot)     # Gráficas de resultados de regresiones
+library(tableone)   # resumen de data
+library(writexl) # Escribir en excel
+library(infer) # Pruebas estadísticas
+library(readr)
+library(dplyr)
+library(readxl)
+
+## reticulate - para codigo de phyton
+```
+
+## Importando datos
+
+```{r pressure, echo=FALSE}
+rm(list = ls())
+dataCompleta <- read_csv("../dta/Base_completa_28.08_11.39.csv")
+load("../dta/Saber9_col.RData")
+#glimpse(dataCompleta, width = 20, )
+
+#Docentes
+
+##docentes <- read_xlsx("../dta/Docentes.xlsx")
+##docentes <- docentes %>% rename("codigo_dane" ="Etiquetas de fila")
+
+
+```
+
+## TRATAMIENTO:
+ - filtrar por el 70% de IR 2014 OK
+ - año se filtra por mayores a 2013 y menor a 2019 OK
+ - Llenando los vacíos (missing) con 0 (D, ZOMAC, PDETZOMAC, PDET) OK
+ - Variable que (TIENE COMPUTADOR, GENERO, INTERNET, LAVADORA) una de las opciones es no responde. Los que tienen eso se sacan.
+ - Dejar variables :
+ var = ['COLE_CODIGO_ICFES', 'COLE_JORNADA', 'codmpio', 'ESTU_GENERO', 'ESTU_PILOPAGA', 'FAMI_TIENEAUTOMOVIL','FAMI_TIENECOMPUTADOR', 'FAMI_NIVELSISBEN', 'FAMI_TIENEINTERNET', 'FAMI_TIENELAVADORA', 'ano', 'PUNTAJE_NOR', 'EDAD', 'Estudia_Reside', 't_establ', 't_establ_o',  'docen_total', 'docen_oficial', 'docen_rural', 'alumn_total', 'alumn_oficial', 'alumn_rural', 'pobl_tot', 'areaoficialkm2', 'altura', 'discapital', 'disbogota', 'terrorismot', 'secuestros', 'homicidios', 'nom_mpio', 'nom_depto', 'coddepto','LATITUD', 'LONGITUD', 'CODIGO_DANE', 'NOMBRE_INSTITUCION', 'PDET', 'ZOMAC', 'PDET_ZOMAC', 'D']
+ - familia nivel sisben - Reemplaza lo que dice "esta clasificado en otro nivel... le pone otro", "no esta claseificado por el sisben ... Sin clasificar" NO
+ - ano a entero
+ 
+```{r}
+
+ dataCompleta <- dataCompleta %>% select(-X1)
+ dataCompleta <- dataCompleta %>% mutate(D = ifelse(is.na(D),0,D),
+                                         ZOMAC = ifelse(is.na(ZOMAC),0,ZOMAC),
+                                         PDET = ifelse(is.na(PDET),0,PDET),
+                                         PDET_ZOMAC = ifelse(is.na(PDET_ZOMAC),0,PDET_ZOMAC))
+ dataCompleta <- dataCompleta %>% filter(FAMI_TIENEINTERNET != "No Responde",
+                                         ESTU_GENERO != "No Responde",
+                                         FAMI_TIENECOMPUTADOR != "No Responde",
+                                         FAMI_TIENELAVADORA != "No Responde",
+                                         FAMI_TIENEAUTOMOVIL != "No Responde")
+ 
+ 
+dataCompleta <- dataCompleta %>% select(COLE_CODIGO_ICFES, COLE_JORNADA, codmpio, ESTU_GENERO, ESTU_PILOPAGA, FAMI_TIENEAUTOMOVIL,FAMI_TIENECOMPUTADOR, FAMI_NIVELSISBEN, FAMI_TIENEINTERNET, FAMI_TIENELAVADORA, ano, PUNTAJE_NOR, EDAD, Estudia_Reside, altura, discapital, disbogota, terrorismot, secuestros, homicidios, nom_mpio, nom_depto, coddepto, LATITUD, LONGITUD, CODIGO_DANE, NOMBRE_INSTITUCION, PDET, ZOMAC, PDET_ZOMAC, D, IPM, coca, H_coca, )
+
+
+#Metiendo Numero de docentes por año y colegio
+dataCompleta <- dataCompleta %>% left_join(docentes, by = c("CODIGO_DANE" = "codigo_dane","ano" = "ANO_PROC"))
+rm(docentes)
+
+#Uniendo Saber9
+Saber9_col <- Saber9_col %>% mutate(CODIGO_DANE = as.double(COD_DANE))
+
+dataCompleta <- dataCompleta %>% left_join(Saber9_col, by = c("CODIGO_DANE","ano"))
+
+
+dataCompleta <- janitor::clean_names(dataCompleta)
+ 
+#dataCompleta %>% count(FAMI_TIENEINTERNET)
+
+length(unique(dataCompleta$COLE_CODIGO_ICFES))
+
+skim(dataCompleta)
+
+```
+
+##DEJAR COLEGIOS CON TODOS LOS AÑOS
+```{r}
+dataCompleta %>%
+   filter(ano>2013,ano<2019) %>% 
+   group_by(cole_codigo_icfes, ano) %>% 
+   select(cole_codigo_icfes,ano) %>%
+   summarise(cole_ok = sum(ano),
+             cooleOK = cole_ok=="60540") %>% 
+   arrange(cole_codigo_icfes) %>% view()
+##########Solo 26 colegios estan en todos los años 
+```
+
+##GRÁFICA DE TENDENCIAS PARALELAS
+
+```{r}
+
+#TENDENCIAS PARALELAS
+tendencias <- dataCompleta %>% 
+   group_by(cole_codigo_icfes,ano) %>%
+   mutate(estu_pilopaga = ifelse(estu_pilopaga=="NO",0,1)) %>% 
+   summarise(suma_pilo_colegio = sum(estu_pilopaga),
+             colegio_pilo = suma_pilo_colegio > 0,
+             puntaje = mean(puntaje_nor)) %>% 
+   arrange(ano) %>%
+   mutate(D1 = lag(colegio_pilo),
+         D1 = ifelse(is.na(D1),0,D1)) %>% 
+   mutate(D = max(D1))
+
+tendencias %>% 
+   mutate(ano = as.numeric(ano)) %>% 
+  group_by(D, ano) %>%
+  summarise(puntaje = mean(puntaje)) %>% 
+  mutate(D = if_else(D==1, "Tratados", "Control")) %>% 
+  ggplot(aes(x=ano, y=puntaje, color = D, fill = D)) + geom_line() + scale_x_continuous(limits = c(2011,2018),breaks = c(2011:2018))+ geom_point(size=2)+
+   labs(y = "Puntaje",
+       x = "Años",
+       caption = "Fuente: Creación própia a partir de datos ICFES") +
+    theme(legend.position="bottom")
+```
+
+
+
+```{r}
+
+#TENDENCIAS PARALELAS
+tendencias <- dataCompleta %>% 
+   group_by(cole_codigo_icfes,ano) %>%
+   mutate(estu_pilopaga = ifelse(estu_pilopaga=="NO",0,1)) %>% 
+   summarise(suma_pilo_colegio = sum(estu_pilopaga),
+             colegio_pilo = suma_pilo_colegio > 0,
+             puntaje = mean(puntaje_nor)) %>% 
+   arrange(ano) %>%
+   mutate(D1 = lag(colegio_pilo),
+         D1 = ifelse(is.na(D1),0,D1)) %>% 
+   mutate(D = max(D1))
+
+tendencias %>% 
+   mutate(ano = as.numeric(ano)) %>% 
+  summarise(puntaje = mean(puntaje)) %>% 
+  ggplot(aes(x=ano, y=puntaje)) + geom_line()+ geom_point(size=2)+
+   labs(y = "Puntaje",
+       x = "Años",
+       caption = "Fuente: Creación própia a partir de datos ICFES") +
+    theme(legend.position="bottom")
+```
+
+

@@ -1,0 +1,173 @@
+---
+title: "Limpieza_Saber9"
+author: "JECG"
+date: "6/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importan librerias
+
+```{r cars, include=FALSE}
+library(tidyverse)  # Gestión de datos
+library(huxtable)   # Presentación de resultados de regresión
+library(broom)      # Organización de los resultados de regresiones
+library(haven)      # Leer dta
+library(skimr)      # Resumen de datos
+library(sjPlot)     # Gráficas de resultados de regresiones
+library(tableone)   # resumen de data
+library(writexl) # Escribir en excel
+library(infer) # Pruebas estadísticas
+library(readr)
+library(dplyr)
+
+## reticulate - para codigo de phyton
+```
+
+## Importando datos MATEMATICAS
+
+```{r pressure, echo=FALSE}
+Mat2012 <- read.table(file="../dta/Saber9/2012/4. Establecimiento/Matematicas_Grado9_2012_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2012) %>% relocate(ano,.after = "COD_DANE")
+names(Mat2012)[3:13] = paste("MAT", names(Mat2012)[3:13], sep = "_")
+
+Mat2013 <- read.table(file="../dta/Saber9/2013/4. Establecimiento/Matematicas_Grado9_2013_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2013) %>% relocate(ano,.after = "COD_DANE")
+names(Mat2013)[3:13] = paste("MAT", names(Mat2013)[3:13], sep = "_")
+
+Mat2014 <- read.table(file="../dta/Saber9/2014/4. Establecimiento/Matematicas_Grado9_2014_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2014) %>% relocate(ano,.after = "COD_DANE")
+names(Mat2014)[3:13] = paste("MAT", names(Mat2014)[3:13], sep = "_")
+
+Mat2015 <- read.table(file="../dta/Saber9/2015/4. Establecimiento/Matematicas_Grado9_2015_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2015) %>% relocate(ano,.after = "COD_DANE")
+names(Mat2015)[3:13] = paste("MAT", names(Mat2015)[3:13], sep = "_")
+
+Mat2016 <- read.table(file="../dta/Saber9/2016/4. Establecimiento/Matematicas_Grado9_2016_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2016) %>% relocate(ano,.after = "COD_DANE")
+names(Mat2016)[3:13] = paste("MAT", names(Mat2016)[3:13], sep = "_")
+
+Mat2017 <- read.table(file="../dta/Saber9/2017/4. Establecimiento/Matematicas_Grado9_2017_EE_Completo.txt", sep = "Â",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2017) %>% relocate(ano,.after = "COD_DANE")
+names(Mat2017)[3:13] = paste("MAT", names(Mat2017)[3:13], sep = "_")
+names(Mat2017)[3:13] = gsub("X.","",names(Mat2017)[3:13])
+
+
+Saber9_mat = rbind(Mat2012,Mat2013,Mat2014,Mat2015, Mat2016, Mat2017)
+unique(Saber9_mat$ano)
+
+
+```
+
+
+## Importando datos LENGUAJE
+
+```{r pressure, echo=FALSE}
+Len2012 <- read.table(file="../dta/Saber9/2012/4. Establecimiento/Lenguaje_Grado9_2012_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2012) %>% relocate(ano,.after = "COD_DANE")
+names(Len2012)[3:13] = paste("LEN", names(Len2012)[3:13], sep = "_")
+
+Len2013 <- read.table(file="../dta/Saber9/2013/4. Establecimiento/Lenguaje_Grado9_2013_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2013) %>% relocate(ano,.after = "COD_DANE")
+names(Len2013)[3:13] = paste("LEN", names(Len2013)[3:13], sep = "_")
+
+Len2014 <- read.table(file="../dta/Saber9/2014/4. Establecimiento/Lenguaje_Grado9_2014_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2014) %>% relocate(ano,.after = "COD_DANE")
+names(Len2014)[3:13] = paste("LEN", names(Len2014)[3:13], sep = "_")
+
+Len2015 <- read.table(file="../dta/Saber9/2015/4. Establecimiento/Lenguaje_Grado9_2015_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2015) %>% relocate(ano,.after = "COD_DANE")
+names(Len2015)[3:13] = paste("LEN", names(Len2015)[3:13], sep = "_")
+
+Len2016 <- read.table(file="../dta/Saber9/2016/4. Establecimiento/Lenguaje_Grado9_2016_EE_Completo.txt", sep = "¬",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2016) %>% relocate(ano,.after = "COD_DANE")
+names(Len2016)[3:13] = paste("LEN", names(Len2016)[3:13], sep = "_")
+
+Len2017 <- read.table(file="../dta/Saber9/2017/4. Establecimiento/Lenguaje_Grado9_2017_EE_Completo.txt", sep = "Â",encoding = "Unicode", header = TRUE) %>% mutate(ano = 2017) %>% relocate(ano,.after = "COD_DANE")
+names(Len2017)[3:13] = paste("LEN", names(Len2017)[3:13], sep = "_")
+names(Len2017)[3:13] = gsub("X.","",names(Len2017)[3:13])
+
+Saber9_len = rbind(Len2012,Len2013,Len2014,Len2015, Len2016, Len2017)
+unique(Saber9_len$ano)
+
+```
+
+## Cruce
+```{r}
+Saber9_col <- Saber9_mat %>% inner_join(Saber9_len, by = c("ano","COD_DANE"))
+unique(Saber9_col$ano)
+
+Saber9_col <- Saber9_col %>% mutate_all(str_replace, "¬", "")
+
+
+length(unique(Saber9_col$COD_DANE))  #Se pierde el dato de 57 colegios unicamente
+length(unique(Saber9_len$COD_DANE))
+length(unique(Saber9_mat$COD_DANE)) 
+
+```
+## Tratamiento
+
+
+```{r}
+rm(Saber9_col2)
+Saber9_col2 <- Saber9_col
+
+Saber9_col2 <- Saber9_col2 %>% mutate_all(str_replace, ",", ".")
+
+Saber9_col2 <- Saber9_col2 %>% mutate(ano = as.numeric(ano),
+                                      MAT_EVALUADOS = as.numeric(MAT_EVALUADOS),
+                                      MAT_PARTICIPANTES = as.numeric(MAT_PARTICIPANTES),
+                                      MAT_COPIA = if_else(MAT_COPIA =="2","1",MAT_COPIA),
+                                      MAT_COPIA = as.logical(as.numeric(MAT_COPIA)),
+                                      MAT_PESO = as.numeric(MAT_PESO),
+                                      MAT_PROMEDIO = as.numeric(MAT_PROMEDIO),
+                                      MAT_ERROR_ESTANDAR = as.numeric(MAT_ERROR_ESTANDAR),
+                                      MAT_DESVIACION = as.numeric(MAT_DESVIACION),
+                                      MAT_INSUFICIENTE = as.numeric(MAT_INSUFICIENTE),
+                                      MAT_MINIMO = as.numeric(MAT_MINIMO),
+                                      MAT_SATISFACTORIO = as.numeric(MAT_SATISFACTORIO),
+                                      MAT_AVANZADO = as.numeric(MAT_AVANZADO),
+                                      LEN_EVALUADOS = as.numeric(LEN_EVALUADOS),
+                                      LEN_PARTICIPANTES = as.numeric(LEN_PARTICIPANTES),
+                                      LEN_COPIA = if_else(LEN_COPIA =="2","1",LEN_COPIA),
+                                      LEN_COPIA = as.logical(as.numeric(LEN_COPIA)),
+                                      LEN_PESO = as.numeric(LEN_PESO),
+                                      LEN_PROMEDIO = as.numeric(LEN_PROMEDIO),
+                                      LEN_ERROR_ESTANDAR = as.numeric(LEN_ERROR_ESTANDAR),
+                                      LEN_DESVIACION = as.numeric(LEN_DESVIACION),
+                                      LEN_INSUFICIENTE = as.numeric(LEN_INSUFICIENTE),
+                                      LEN_MINIMO = as.numeric(LEN_MINIMO),
+                                      LEN_SATISFACTORIO = as.numeric(LEN_SATISFACTORIO),
+                                      LEN_AVANZADO = as.numeric(LEN_AVANZADO))
+Saber9_col2 <- drop_na(Saber9_col2)
+
+skim(Saber9_col2)
+Saber9_col <- Saber9_col2
+```
+
+
+
+## Exportación
+```{r}
+save(Saber9_col,  file = "../dta/Saber9_col.RData")  # Datos de 11356 colegios entre 2012 y 2017
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
