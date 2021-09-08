@@ -25,6 +25,9 @@ library(readr)
 library(dplyr)
 library(readxl)
 library(lfe)
+library(ggplot2)
+library(ggridges)
+library(viridis)
 ## reticulate - para codigo de phyton
 ```
 
@@ -92,6 +95,20 @@ Saber9_col <- Saber9_col %>% mutate(CODIGO_DANE = as.double(COD_DANE))
 
 dataCompleta <- dataCompleta %>% left_join(Saber9_col, by = c("COLE_COD_DANE_ESTABLECIMIENTO" = "CODIGO_DANE","ano"))
 dataCompleta <- janitor::clean_names(dataCompleta)
+
+dataCompleta <- dataCompleta %>% mutate(sb9_mat_sd = sd(na.omit(mat_promedio)),
+                                        sb9_mat_mean = mean(na.omit(mat_promedio)),
+                                        sb9_len_sd = sd(na.omit(len_promedio)),
+                                        sb9_len_mean = mean(na.omit(len_promedio)),
+                                        sb9_mat_est = (mat_promedio-sb9_mat_mean)/sb9_mat_sd,
+                                        sb9_len_est = (len_promedio-sb9_len_mean)/sb9_len_sd,
+                                        puntaje9_nor = (sb9_mat_est+sb9_len_est)/2,
+                                        sb9_mat_sd = NULL,
+                                        sb9_mat_mean = NULL,
+                                        sb9_len_sd = NULL,
+                                        sb9_len_mean = NULL,
+                                        sb9_mat_est = NULL,
+                                        sb9_len_est = NULL)
  
 #str(dataCompleta)
 #table(dataCompleta$cole_naturaleza)
@@ -109,7 +126,7 @@ dataCompleta <- dataCompleta %>% mutate(estu_pilopaga = ifelse(estu_pilopaga=="S
                                         fami_tienelavadora = as.logical(ifelse(fami_tienelavadora == "Si",1,0)),
                                         cole_jornada = ifelse(cole_jornada == "Única","UNICA",cole_jornada))
 table(dataCompleta$estu_pilopaga)
-## Filtros pendientes: Seleccionar solo los de calendario A
+## Seleccionar solo los de calendario A oficiales
 dataCompleta <- dataCompleta %>% filter(cole_calendario == "A", cole_naturaleza == "OFICIAL")
 
 length(unique(dataCompleta$COLE_CODIGO_ICFES))
@@ -145,6 +162,8 @@ rm(dataColD)
 #histograma
 dataCompleta %>% filter(ano>2010) %>% count(cole_codigo_icfes, ano) %>% count(cole_codigo_icfes) %>% mutate(Incluidos = ifelse(n==7,"Si","No")) %>%  ggplot(aes(x=n, fill = Incluidos))+ geom_histogram() + labs(y = "Densidad", x = "Cantidad de años en los que aparece el colegio",caption = "Fuente: Creación própia a partir de datos ICFES")+ scale_fill_manual(values = c(616, 500))#+theme(legend.position="bottom")
 
+dataCompleta %>% filter(ano>2010) %>% count(cole_codigo_icfes, ano) %>% count(cole_codigo_icfes) %>% mutate(Incluidos = ifelse(n==7,"Si","No")) %>% count(Incluidos)
+
 ```
 
 ## Quitando colegios que no estan en todos los años
@@ -153,24 +172,117 @@ length(unique(dataCompleta$cole_codigo_icfes)) ##12279
 
 Casos_completos <-dataCompleta %>% filter(ano>2010) %>% count(cole_codigo_icfes, ano) %>% arrange(ano) %>%  pivot_wider(names_from = ano, values_from = n) %>%  filter(complete.cases(.)) %>% pull(cole_codigo_icfes)
 
-#histograma
-#dataCompleta %>% filter(ano>2010) %>% count(cole_codigo_icfes, ano) %>% count(cole_codigo_icfes) %>% mutate(colores = ifelse(n==8,"red","blue")) %>%  ggplot(aes(x=n), color = colores)+ geom_histogram() + labs(y = "Densidad", x = "Cantidad de años en los que aparece el colegio",caption = "Fuente: Creación própia a partir de datos ICFES") + theme(legend.position="bottom")
-
-#dataTesis %>% count(cole_codigo_icfes)
-#length(Casos_completos)
-
 dataCompleta <- dataCompleta %>% filter(cole_codigo_icfes %in% Casos_completos)
 
 rm(Casos_completos)
-#Casos_completos <-dataTesisFake %>% filter(ano>2010) %>% count(cole_codigo_icfes, ano) %>% arrange(ano) %>%  pivot_wider(names_from = ano, values_from = n) %>%  filter(complete.cases(.)) %>% pull(cole_codigo_icfes)
-#dataTesisFake <- dataTesisFake %>% filter(cole_codigo_icfes %in% Casos_completos)
+
 
 ```
+
+
+## Variable de probabilidad de acceso a la educación superior
+```{r}
+
+Saber20132 <- read.table(file="../dta/prob_superior/SB11_20132.TXT", sep = "¬",encoding = "Unicode", header = TRUE, fill = TRUE)
+Saber20142 <- read.table(file="../dta/prob_superior/SB11_20142.TXT", sep = "¬",encoding = "Unicode", header = TRUE, fill = TRUE)
+
+Saber20132 <- Saber20132 %>% mutate_all(str_replace, "Â", "") %>% mutate(ano = 2013) %>% select(ano, ESTU_INGRESAR_PROG_EDUSUPERIORÂ, COLE_CODIGO_ICFESÂ, COLE_COD_DANE_ESTABLECIMIENTOÂ, ESTU_CONSECUTIVOÂ)
+Saber20142 <- Saber20142 %>% mutate_all(str_replace, "Â", "") %>% mutate(ano = 2014) %>% select(ano, ESTU_INGRESAR_PROG_EDUSUPERIORÂ, COLE_CODIGO_ICFESÂ, COLE_COD_DANE_ESTABLECIMIENTOÂ, ESTU_CONSECUTIVOÂ)
+
+Saber20132 <- Saber20132 %>% mutate(ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="",NA,ESTU_INGRESAR_PROG_EDUSUPERIORÂ)) %>% drop_na()
+Saber20142 <- Saber20142 %>% mutate(ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="",NA,ESTU_INGRESAR_PROG_EDUSUPERIORÂ)) %>% drop_na()
+
+Saber20132 <- Saber20132 %>% mutate(ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="Con toda seguridad voy a ingresar a un programa de EducaciÃ³n Superior", 0.9, ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="Es probable que ingrese a un programa de EducaciÃ³n Superior", 0.6,ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="Es poco probable que ingrese a un programa de EducaciÃ³n Superior", 0.4, ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="No voy a continuar estudiando", 0.1, ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = as.numeric(ESTU_INGRESAR_PROG_EDUSUPERIORÂ))
+
+
+Saber20142 <- Saber20142 %>% mutate(ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="Con toda seguridad voy a ingresar a un programa de EducaciÃ³n Superior", 0.9, ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="Es probable que ingrese a un programa de EducaciÃ³n Superior", 0.6,ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="Es poco probable que ingrese a un programa de EducaciÃ³n Superior", 0.4, ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = ifelse(ESTU_INGRESAR_PROG_EDUSUPERIORÂ=="No voy a continuar estudiando", 0.1, ESTU_INGRESAR_PROG_EDUSUPERIORÂ),
+                                    ESTU_INGRESAR_PROG_EDUSUPERIORÂ = as.numeric(ESTU_INGRESAR_PROG_EDUSUPERIORÂ))
+
+
+ProbSup <- rbind(Saber20132, Saber20142)
+
+dataCompleta2 <- dataCompleta %>% filter(ano>=2013 & ano<=2015) %>% left_join(ProbSup, by = c("ano","estu_consecutivo"="ESTU_CONSECUTIVOÂ"))
+
+colegiosList <- dataCompleta2 %>% filter((ano==2013 & !is.na(ESTU_INGRESAR_PROG_EDUSUPERIORÂ)) | (ano==2014 & !is.na(ESTU_INGRESAR_PROG_EDUSUPERIORÂ))) %>% select(cole_codigo_icfes, ano)
+
+dataCompleta2 <- dataCompleta2 %>% filter(cole_codigo_icfes %in% colegiosList$cole_codigo_icfes)
+
+A <- dataCompleta2 %>% group_by(cole_codigo_icfes,ano) %>% summarise(ESTU_INGRESAR_PROG_EDUSUPERIORÂ = mean(na.omit(ESTU_INGRESAR_PROG_EDUSUPERIORÂ)))
+
+##Modelo
+dataTesisModel <- dataCompleta2 %>% select(D, ano, estu_pilopaga, puntaje_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, a_d_tot, cole_caracter, ir_2014) %>% mutate(cole_caracter = ifelse(cole_caracter=="No Responde"|cole_caracter=="NO APLICA",NA,cole_caracter),
+                                                      rural = ifelse(ir_2014>0.7,1,0)) %>% drop_na()
+modeloDID <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet+ cole_caracter + a_d_tot + rural + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet+ cole_caracter*D +rural*D | factor(cole_codigo_icfes) + factor(ano), data = dataTesisModel)
+
+table(dataCompleta2$D)
+
+huxreg("DID"   = modeloDID)
+
+
+
+#Graficos
+A %>% group_by(cole_codigo_icfes, ano)  %>% ggplot(aes(x=ano, y=puntaje_nor)) + geom_line()
+A %>% group_by(ano) %>% ggplot(aes(x=ESTU_INGRESAR_PROG_EDUSUPERIORÂ, group = ano)) + geom_histogram()
+
+table(A$ano)
+
+dataCompleta2 %>% group_by(cole_codigo_icfes, ano) %>% filter(ano>=2013 & ano<=2014 & !is.na(ESTU_INGRESAR_PROG_EDUSUPERIORÂ) ) %>% summarise(ESTU_INGRESAR_PROG_EDUSUPERIORÂ = mean(ESTU_INGRESAR_PROG_EDUSUPERIORÂ)) %>% ggplot(aes(x = ano, y = ESTU_INGRESAR_PROG_EDUSUPERIORÂ, fill = ano)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+
+skim(dataCompleta2)
+```
+
+
+
+## Exportación
+```{r}
+save(dataCompleta,  file = "../dta/dataCompleta.RData")  # Datos de 11356 colegios entre 2012 y 2017
+```
+
+
+## Descriptivas
+```{r}
+dataTesisModel <- dataCompleta %>% select(D, ano, estu_pilopaga, puntaje_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, a_d_tot, cole_caracter, ir_2014) %>% mutate(cole_caracter = ifelse(cole_caracter=="No Responde"|cole_caracter=="NO APLICA",NA,cole_caracter),
+                                                      rural = ifelse(ir_2014>0.7,"Si","No"),
+                                                      pdet = ifelse(pdet==1,"Si","No"),
+                                                      zomac = ifelse(zomac==1,"Si","No"),
+                                                      pdet_zomac = ifelse(pdet_zomac==1,"Si","No"))
+descriptivas <- CreateTableOne(data = dataTesisModel, strata = "D")
+print(descriptivas)
+
+tablaDesc <- print(descriptivas, quote = TRUE, noSpaces = TRUE, printToggle = FALSE) %>% as_tibble()
+print(tablaDesc)
+quick_xlsx(tablaDesc, file = "../out/tabla_Descripcion.xlsx")
+
+
+
+
+descriptivas2 <- CreateTableOne(data = dataTesisModel, strata = "ano")
+print(descriptivas2)
+
+tablaDesc2 <- print(descriptivas2, quote = FALSE, noSpaces = FALSE, printToggle = TRUE) %>% as_tibble()
+print(tablaDesc2)
+quick_xlsx(tablaDesc2, file = "../out/tabla_Descripcion2.xlsx")
+
+```
+
 
 
 ##GRÁFICA DE TENDENCIAS PARALELAS
 
 ```{r}
+
+table(dataCompleta$estu_pilopaga)
 
 #TENDENCIAS PARALELAS
 tendencias <- dataCompleta %>% 
@@ -178,7 +290,9 @@ tendencias <- dataCompleta %>%
    #mutate(estu_pilopaga = ifelse(estu_pilopaga=="NO",0,1)) %>% 
    summarise(suma_pilo_colegio = sum(estu_pilopaga),
              colegio_pilo = suma_pilo_colegio > 0,
-             puntaje = mean(puntaje_nor)) %>% 
+             puntaje = mean(puntaje_nor),
+             ir_2014 = mean(ir_2014),
+             puntaje9 = mean(puntaje9_nor)) %>% 
    arrange(ano) %>%
    mutate(D1 = lag(colegio_pilo),
          D1 = ifelse(is.na(D1),0,D1)) %>% 
@@ -193,7 +307,21 @@ tendencias %>%
    labs(y = "Puntaje",
        x = "Años",
        caption = "Fuente: Creación própia a partir de datos ICFES") +
-    theme(legend.position="bottom")
+    theme(legend.position="bottom")+
+  scale_color_manual(values = c(616, 500))
+
+tendencias %>% 
+  drop_na() %>% 
+  mutate(ano = as.numeric(ano)) %>% 
+  group_by(D, ano) %>%
+  summarise(puntaje9 = mean(puntaje9)) %>% 
+  mutate(D = if_else(D==1, "Tratados", "Control")) %>% 
+  ggplot(aes(x=ano, y=puntaje9, color = D, fill = D)) + geom_line()+geom_smooth(method = "lm") + scale_x_continuous(limits = c(2012,2017),breaks = c(2011:2017))+ geom_point(size=2)+
+   labs(y = "Puntaje",
+       x = "Años",
+       caption = "Fuente: Creación própia a partir de datos ICFES") +
+    theme(legend.position="bottom")+
+  scale_color_manual(values = c(616, 500)) +scale_fill_manual(values = c(616, 500))
 ```
 
 
@@ -220,34 +348,49 @@ dataCompleta %>%
        x = "Puntaje estandarizado [sd]",
        title = "Distribución de puntajes",
        caption = "Fuente: Creación própia a partir de datos ICFES") +
-    theme(legend.position="bottom")
+    theme(legend.position="bottom")+scale_color_manual(values = c(616, 500))+scale_fill_manual(values = c(616, 500))
 ggsave("../out/histograma.png", width = 700 / 100, height = 430 / 100, dpi = 100)
+
+dataCompleta %>%
+  filter(ano>2010,ano<2019) %>% 
+  group_by(D) %>%
+  mutate(D = if_else(D, "Tratados", "Control")) %>%
+  ggplot(aes(x= puntaje9_nor, color = D, fill = D)) +
+    geom_histogram(alpha = 1, binwidth=0.08 ,position =  "identity")+
+    geom_vline(xintercept=-0.4, color=2, linetype = "dashed") +
+    geom_vline(xintercept=-0,05, color=1, linetype = "dashed") +
+    labs(y = "Densidad",
+       x = "Puntaje estandarizado [sd]",
+       title = "Distribución de puntajes",
+       caption = "Fuente: Creación própia a partir de datos ICFES") +
+    theme(legend.position="bottom")+scale_color_manual(values = c(616, 500))+scale_fill_manual(values = c(616, 500))
 #__________________________________________________________________________________
 
 ## NIVEL SISBEN__________________________________________________________________
 dataCompleta %>%
   filter(ano>2013,ano<2019, fami_nivelsisben !="No Responde") %>% 
   mutate(fami_nivelsisben = as.character(fami_nivelsisben),
-    fami_nivelsisben = ifelse(fami_nivelsisben=="No está clasificada por el SISBEN" |fami_nivelsisben=="Esta clasificada en otro nivel del SISBEN" ,"No clasificado",fami_nivelsisben)) %>%
-  group_by(D) %>%
-  mutate(D = if_else(D, "Tratados", "Control")) %>%
-  ggplot(aes(x= fami_nivelsisben, color = D, fill = D)) +
-    geom_bar(alpha = 1, binwidth=0.08 ,position =  "identity")+
+    fami_nivelsisben = ifelse(fami_nivelsisben=="No está clasificada por el SISBEN"| fami_nivelsisben=="Otro"| fami_nivelsisben=="Sin clasificar" |fami_nivelsisben=="Esta clasificada en otro nivel del SISBEN" ,"No clasificado",fami_nivelsisben)) %>%
+  #group_by(D) %>%
+  mutate(D = if_else(D, "Tratados", "Control"),
+         estu_pilopaga = ifelse(estu_pilopaga==1,"Si","No")) %>%
+  ggplot(aes(x= fami_nivelsisben, fill = D)) +
+    geom_bar(alpha = 1, binwidth=0.08 ,position =  "identity")+ geom_text(stat = 'count',aes(label = ..count..), vjust = -0.5, size = 3)+
     labs(y = "Densidad",
        x = "Nivel de sisben",
        title = "Distribución de SISBEN",
        caption = "Fuente: Creación própia a partir de datos ICFES") +
-    theme(legend.position="bottom")
+    theme(legend.position="bottom") + scale_fill_manual(values = c(616, 500))
 #ggsave("../out/histograma.png", width = 700 / 100, height = 430 / 100, dpi = 100)
 #__________________________________________________________________________________
-
+## DIAGRAMA DE BARRAS DE LA MEDIA DE PUNTAJES POR TRATADO Y CONTROL
 dataCompleta %>%
   mutate(D = if_else(D, "Tratados", "Control")) %>%
   ggplot(aes(x = D, y = puntaje_nor, color = D, fill = D)) +
   geom_bar(stat = "summary", fun = "mean") +
   labs(y = "Puntaje estandarizado [sd]",
        x = "Grupos",
-       caption = "Fuente: Creación propia a partir de datos ICFES")
+       caption = "Fuente: Creación propia a partir de datos ICFES")+scale_fill_manual(values = c(616, 500))+scale_color_manual(values = c(616, 500))
 #_____________________________________________________________________________
 
 
@@ -298,6 +441,7 @@ dataCompleta %>%
            vjust = "inward", hjust = "outward")
 # Con ggsave guardamos la última gráfica generada
 ggsave("../out/tendenciasParalelas.png", width = 700 / 100, height = 430 / 100, dpi = 100)
+
 ```
 
 ##Grafica SABER 9
@@ -333,50 +477,6 @@ tendencias %>%
 
 
 ```
-
-
-
-
-## MODELO DID
-```{r}
-dataTesisModel <- dataCompleta %>% select(D, ano, estu_pilopaga, puntaje_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, a_d_tot, a_d_med) %>% drop_na()
-
-#INTENTO 1:modeloDID <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel)
-
-modeloDID <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet + a_d_tot+ a_d_med | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel)
-
-#modeloDIDElisa <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet +D*ano+tot_doce_col+ tot_alum_col | factor(ano), data = dataTesisModel)
-
-#summary(modeloDID)
-#huxreg("DID"   = modeloDID)
-
-modeloDID2 <- felm( puntaje_nor ~ D | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel)
-huxreg("DID"   = modeloDID,
-       "DID2"  = modeloDID2)
-
-#write_xlsx(huxreg("DID" = modeloDID),"../out/tabla_DID.xlsx")
-```
-
-## MODELO DID saber 9
-```{r}
-dataTesisModel <- dataCompleta %>% select(D, ano, estu_pilopaga, puntaje_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, tot_doce_col, tot_alum_col, mat_promedio, len_promedio) %>% mutate(puntaje_nor = (mat_promedio+len_promedio)/2)
-
-#INTENTO 1:modeloDID <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel)
-
-modeloDID <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet + tot_doce_col+ tot_alum_col | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel)
-
-#modeloDIDElisa <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet +D*ano+tot_doce_col+ tot_alum_col | factor(ano), data = dataTesisModel)
-
-#summary(modeloDID)
-#huxreg("DID"   = modeloDID)
-
-modeloDID2 <- felm( puntaje_nor ~ D | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel)
-huxreg("DID"   = modeloDID,
-       "DID2"  = modeloDID2)
-
-#write_xlsx(huxreg("DID" = modeloDID),"../out/tabla_DID.xlsx")
-```
-
 
 
 

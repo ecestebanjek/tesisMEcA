@@ -1,0 +1,184 @@
+---
+title: "Modelos Tesis"
+author: "JECG"
+date: "20/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importan librerias
+
+```{r cars, include=FALSE}
+library(tidyverse)  # Gestión de datos
+library(huxtable)   # Presentación de resultados de regresión
+library(broom)      # Organización de los resultados de regresiones
+library(haven)      # Leer dta
+library(skimr)      # Resumen de datos
+library(sjPlot)     # Gráficas de resultados de regresiones
+library(tableone)   # resumen de data
+library(writexl) # Escribir en excel
+library(infer) # Pruebas estadísticas
+library(readr)
+library(dplyr)
+library(readxl)
+library(lfe)
+## reticulate - para codigo de phyton
+```
+
+## Importando datos
+
+```{r pressure, echo=FALSE}
+
+rm(list = ls())
+load("../dta/dataCompleta.RData")
+
+```
+
+
+## MODELO FUNDAMENTAL DID
+```{r}
+
+dataTesisModel <- dataCompleta %>% select(D, ano, estu_pilopaga, puntaje_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, a_d_tot, cole_caracter, ir_2014) %>% mutate(cole_caracter = ifelse(cole_caracter=="No Responde"|cole_caracter=="NO APLICA",NA,cole_caracter),
+                                                      rural = ifelse(ir_2014>0.7,1,0)) %>% drop_na()
+
+#INTENTO 1:modeloDID <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel)
+
+modeloDID <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet+ cole_caracter + a_d_tot + rural + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet+ cole_caracter*D +rural*D | factor(cole_codigo_icfes) + factor(ano), data = dataTesisModel)
+
+modeloDID2 <- felm( puntaje_nor ~ D  | factor(cole_codigo_icfes) +factor(ano), data = dataTesisModel)
+huxreg("DID"   = modeloDID,
+       "DID SIN COVARIABLES"  = modeloDID2)
+
+#write_xlsx(huxreg("DID" = modeloDID),"../out/tabla_DID.xlsx")
+```
+
+## MODELO DID saber 9
+```{r}
+dataTesisModel2 <- dataCompleta %>% select(D, ano, estu_pilopaga, puntaje9_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, a_d_tot, cole_caracter, ir_2014) %>% mutate(cole_caracter = ifelse(cole_caracter=="No Responde"|cole_caracter=="NO APLICA",NA,cole_caracter),
+                                                      rural = ifelse(ir_2014>0.7,1,0)) %>% drop_na()
+
+
+modeloDID_9 <- felm( puntaje9_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet+ cole_caracter + a_d_tot + rural + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet+ cole_caracter*D +rural*D | factor(cole_codigo_icfes) + factor(ano), data = dataTesisModel2)
+
+#modeloDIDElisa <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet + D*estu_genero + D*pdet + D*zomac + D*fami_tienecomputador + D*fami_tieneinternet +D*ano+tot_doce_col+ tot_alum_col | factor(ano), data = dataTesisModel)
+
+modeloDID2_9 <- felm( puntaje9_nor ~ D | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModel2)
+huxreg("DID NOVENO"   = modeloDID_9,
+       "DID SIN COVARIABLES NOVENO"  = modeloDID2_9)
+
+#write_xlsx(huxreg("DID" = modeloDID),"../out/tabla_DID.xlsx")
+```
+
+
+# MODELO FAKE
+## Generando variable de tratamiento falsa
+```{r}
+dataColD <- 
+  dataCompleta %>% 
+  group_by(cole_codigo_icfes, ano) %>%
+ # filter(cole_codigo_icfes == "1487") %>%
+  summarise(suma_pilo_colegio = sum(estu_pilopaga),
+         colegio_pilo = suma_pilo_colegio > 0) %>% 
+  arrange(ano) %>%
+  mutate(
+    D1 = lead(colegio_pilo,1),
+    #D1 = lag(colegio_pilo),
+    D1 = ifelse(is.na(D1),0,D1)) %>%
+  mutate(D_fake = cummax(D1)) %>%
+  select(ano, cole_codigo_icfes, suma_pilo_colegio, colegio_pilo, D_fake)# %>% view()
+
+
+#rm(dataTesisFake)
+dataTesisFake <- dataCompleta %>% left_join(dataColD) #%>% filter(cole_codigo_icfes=="1487")
+dataTesisFake <- dataTesisFake %>% mutate(D = as.logical(D))
+rm(dataColD)
+
+```
+
+## MODELO DID FAKE
+```{r}
+dataTesisModelFake <- dataTesisFake %>% select(D_fake, ano, estu_pilopaga, puntaje_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, cole_caracter,a_d_tot, ir_2014) %>% filter(ano<2015) %>% mutate(cole_caracter = ifelse(cole_caracter=="No Responde"|cole_caracter=="NO APLICA",NA,cole_caracter),
+                                                      rural = ifelse(ir_2014>0.7,1,0))
+
+
+
+#modeloDIDFake <- felm( puntaje_nor ~ D + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet | factor(cole_codigo_icfes)+ factor(ano) , data = dataTesisModelFake)
+modeloDIDFake <- felm( puntaje_nor ~ D_fake + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet+ cole_caracter + a_d_tot + rural + D_fake*estu_genero + D_fake*pdet + D_fake*zomac + D_fake*fami_tienecomputador + D_fake*fami_tieneinternet+ cole_caracter*D_fake +rural*D_fake | factor(cole_codigo_icfes) + factor(ano), data = dataTesisModelFake)
+#summary(modeloDID)
+huxreg("DID Failsificación"   = modeloDIDFake)
+
+#write_xlsx(huxreg("DID" = modeloDID),"../out/tabla_DID.xlsx")
+```
+
+
+## CON TRATAMIENTO CAATEGORICO
+## Generando variable de tratamiento categorica
+```{r}
+dataColD <- 
+  dataCompleta %>% 
+  group_by(cole_codigo_icfes, ano) %>%
+  #filter(cole_codigo_icfes == "786") %>%
+  arrange(ano) %>%
+  summarise(suma_pilo_colegio = sum(estu_pilopaga),
+            colegio_pilo = suma_pilo_colegio,
+            colegio_pilo = cumsum(colegio_pilo)) %>% 
+  mutate(
+    D1 = lag(colegio_pilo),
+    D1 = ifelse(is.na(D1),0,D1)) %>%
+  mutate(D_count = cumsum(D1)) %>%
+  select(ano, cole_codigo_icfes, suma_pilo_colegio, colegio_pilo, D_count) 
+
+
+#rm(dataTesisFake)
+dataTesisCount <- dataCompleta %>% left_join(dataColD, by = c("cole_codigo_icfes","ano")) #%>% filter(cole_codigo_icfes=="1487")
+table(is.na(dataTesisCount$D_count))
+rm(dataColD)
+
+```
+
+## MODELO COUNT
+```{r}
+dataTesisModelCount <- dataTesisCount %>% select(D_count, ano, estu_pilopaga, puntaje_nor, cole_codigo_icfes, estu_genero,edad, fami_tienecomputador, fami_tieneinternet, fami_tienelavadora, pdet, zomac, pdet_zomac, cole_caracter,a_d_tot, ir_2014) %>%
+  mutate(cole_caracter = ifelse(cole_caracter=="No Responde"|cole_caracter=="NO APLICA",NA,cole_caracter),
+  rural = ifelse(ir_2014>0.7,1,0),
+  D_count = ifelse(D_count>=1 & D_count <= 5,"Categoría 1",ifelse(D_count>=6 & D_count <= 10,"Categoría 2",ifelse(D_count>=11 & D_count <= 20,"Categoría 3",ifelse(D_count == 0,"Categoría 0","Categoría 4")))))
+
+#dataTesisModelCount %>% 
+ # ggplot(aes(x=D_count)) + geom_histogram()
+
+#table(dataTesisModelCount$D_count)
+
+modeloDIDCount <- felm( puntaje_nor ~ D_count + estu_genero + edad + pdet + zomac + fami_tienecomputador + fami_tieneinternet+ cole_caracter + a_d_tot + rural + D_count*estu_genero + D_count*pdet + D_count*zomac + D_count*fami_tienecomputador + D_count*fami_tieneinternet+ cole_caracter*D_count +rural*D_count | factor(cole_codigo_icfes) + factor(ano), data = dataTesisModelCount)
+#summary(modeloDID)
+huxreg("DID Fuerza motivación"   = modeloDIDCount)
+
+#write_xlsx(huxreg("DID" = modeloDID),"../out/tabla_DID.xlsx")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
