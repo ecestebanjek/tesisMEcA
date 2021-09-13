@@ -142,6 +142,7 @@ Saber9_col <- Saber9_col2
 ## Exportación
 ```{r}
 save(Saber9_col,  file = "../dta/Saber9_col.RData")  # Datos de 11356 colegios entre 2012 y 2017
+
 ```
 
 
